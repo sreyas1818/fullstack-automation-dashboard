@@ -48,3 +48,29 @@ This project is a full-stack automation system that processes PDF data received 
 
 ## 📂 Project Structure
 
+```
+automation/
+│
+├── backend/ # FastAPI backend
+│ ├── main.py # API entry point
+│ ├── database.py # Database connection logic
+│ ├── requirements.txt # Backend dependencies
+│ └── pycache/
+│
+├── frontend/ # React frontend
+│ ├── src/ # React source code
+│ ├── public/ # Static assets
+│ ├── package.json
+│ ├── package-lock.json
+│ └── node_modules/ # Ignored in GitHub
+│
+├── whatsapp-bot/ # WhatsApp automation bot
+│ ├── index.js # Bot logic
+│ ├── package.json
+│ └── package-lock.json
+│
+├── Drive and Whatsapp Automation.json # n8n workflow configuration
+├── .gitignore
+└── README.md
+```
+
