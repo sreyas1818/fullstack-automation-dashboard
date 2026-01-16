@@ -1,0 +1,52 @@
+.navbar {
+  background: #1976d2;
+  color: white;
+  padding: 12px 20px;
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+/* LEFT */
+.nav-left {
+  flex: 1;
+}
+
+/* CENTER */
+.nav-center {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  gap: 40px;
+}
+
+.nav-center a {
+  color: white;
+  text-decoration: none;
+  font-weight: bold;
+  font-size: 16px;
+}
+
+.nav-center a.active {
+  border-bottom: 2px solid white;
+}
+
+/* RIGHT */
+.nav-right {
+  flex: 1;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.logout-btn {
+  background: #d32f2f;
+  color: white;
+  border: none;
+  padding: 6px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.logout-btn:hover {
+  background: #b71c1c;
+}

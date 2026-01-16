@@ -1,0 +1,42 @@
+/* Full viewport minus navbar */
+.graph-page {
+  height: calc(100vh - 60px);
+  padding: 20px;
+  background: #f4f6f8;
+  overflow: hidden; /* ❌ no scroll */
+}
+
+/* Card layout */
+.graph-card {
+  height: 100%;
+  background: white;
+  border-radius: 8px;
+  padding: 15px;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Buttons */
+.graph-buttons {
+  margin-bottom: 10px;
+}
+
+.graph-buttons button {
+  margin-right: 8px;
+  padding: 6px 12px;
+  border: none;
+  border-radius: 5px;
+  background: #1976d2;
+  color: white;
+  cursor: pointer;
+}
+
+.graph-buttons button:hover {
+  background: #125ea5;
+}
+
+/* Chart takes remaining space */
+.graph-container {
+  flex: 1;
+  position: relative;
+}

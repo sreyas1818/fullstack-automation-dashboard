@@ -1,0 +1,204 @@
+{
+  "name": "Unified PDF Processor",
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "triggerOn": "specificFolder",
+        "folderToWatch": {
+          "__rl": true,
+          "value": "1JVGKO5QDe4E1H5pTbat7XEDTUYvGTO3j",
+          "mode": "list",
+          "cachedResultName": "PDF_Automation",
+          "cachedResultUrl": "https://drive.google.com/drive/folders/1JVGKO5QDe4E1H5pTbat7XEDTUYvGTO3j"
+        },
+        "event": "fileCreated",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDriveTrigger",
+      "typeVersion": 1,
+      "position": [-512, -160],
+      "id": "dff71ad4-fb87-4d4d-b0e0-4796075760ae",
+      "name": "Google Drive Trigger"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "whatsapp-pdf",
+        "options": {
+          "binaryPropertyName": "data"
+        }
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [-512, 64],
+      "id": "c458ff79-1f34-4d03-9b69-ce377085b9f6",
+      "name": "Webhook",
+      "webhookId": "99ab067a-4434-4239-8d95-fc9e43e15b2f"
+    },
+    {
+      "parameters": {
+        "operation": "download",
+        "fileId": {
+          "__rl": true,
+          "value": "={{ $json.id }}",
+          "mode": "id"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [-256, -160],
+      "id": "e1799c89-80f5-4419-98ac-e55fbc3039a1",
+      "name": "Download file"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "f399a81f-0821-4963-ab59-65591fb511f3",
+              "name": "source",
+              "value": "google_drive",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [-48, -160],
+      "id": "42c25ab7-fc4a-4b81-ba0b-435b2c21f1e4",
+      "name": "Set – Google"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "20377285-f5e2-4c03-be23-ee16fe462595",
+              "name": "source",
+              "value": "whatsapp",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [-240, 64],
+      "id": "0cc4570b-a138-4128-ad6a-b361c17a09c2",
+      "name": "Set – WhatsApp"
+    },
+    {
+      "parameters": {
+        "operation": "pdf",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1.1,
+      "position": [192, 64],
+      "id": "85d97879-4433-4339-8b59-31ed9d99bd86",
+      "name": "Extract from File"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst text = items[0].json.text;\n\nconst rows = text.match(/(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\\s+\\d+\\s+\\d+\\s+\\d+\\s+\\d+/g);\n\nconst output = rows.map(row => {\n  const parts = row.split(/\\s+/);\n\n  return {\n    json: {\n      month: parts[0],\n      electronics: Number(parts[1]),\n      clothing: Number(parts[2]),\n      groceries: Number(parts[3]),\n      total_sales: Number(parts[4]),\n      source: \"google_drive\",\n      created_at: new Date()\n    }\n  };\n});\n\nreturn output;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [432, 0],
+      "id": "0f4291a4-bf78-4742-b0e8-ff4feb591068",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "table": {
+          "__rl": true,
+          "value": "sales_data",
+          "mode": "list",
+          "cachedResultName": "sales_data"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.5,
+      "position": [640, 0],
+      "id": "f5527687-e634-449d-8e58-abebaa8426a7",
+      "name": "Insert rows in a table"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const binaryKeys = Object.keys($binary);\nif (binaryKeys.length === 0) {\n  throw new Error(\"No binary data found\");\n}\nreturn {\n  json: $json,\n  binary: {\n    data: $binary[binaryKeys[0]]\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [160, -160],
+      "id": "26bf5faf-c00a-4279-8080-d17e7345c495",
+      "name": "Code in JavaScript1"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const binaryKeys = Object.keys($binary);\nif (binaryKeys.length === 0) {\n  throw new Error(\"No binary data found\");\n}\nreturn {\n  json: $json,\n  binary: {\n    data: $binary[binaryKeys[0]]\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-32, 64],
+      "id": "d336a3e8-ba78-49c8-99d5-d5147658d46d",
+      "name": "Code in JavaScript2"
+    }
+  ],
+  "connections": {
+    "Google Drive Trigger": {
+      "main": [[{ "node": "Download file", "type": "main", "index": 0 }]]
+    },
+    "Webhook": {
+      "main": [[{ "node": "Set – WhatsApp", "type": "main", "index": 0 }]]
+    },
+    "Download file": {
+      "main": [[{ "node": "Set – Google", "type": "main", "index": 0 }]]
+    },
+    "Set – Google": {
+      "main": [[{ "node": "Code in JavaScript1", "type": "main", "index": 0 }]]
+    },
+    "Set – WhatsApp": {
+      "main": [[{ "node": "Code in JavaScript2", "type": "main", "index": 0 }]]
+    },
+    "Code in JavaScript1": {
+      "main": [[{ "node": "Extract from File", "type": "main", "index": 0 }]]
+    },
+    "Code in JavaScript2": {
+      "main": [[{ "node": "Extract from File", "type": "main", "index": 0 }]]
+    },
+    "Extract from File": {
+      "main": [[{ "node": "Code in JavaScript", "type": "main", "index": 0 }]]
+    },
+    "Code in JavaScript": {
+      "main": [[{ "node": "Insert rows in a table", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false
+  },
+  "versionId": "97033cd6-bbc2-4924-aa85-8fc7c6d21d53",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "f6e2ddc3bae219e4d819009621d6f8f7bdceede66808e8b0e7a631cf69657374"
+  },
+  "id": "IN-3f4D4axB0Ba74Mc_RW",
+  "tags": []
+}

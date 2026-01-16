@@ -1,0 +1,37 @@
+.chatbot-page {
+  padding: 20px;
+  background: #f4f6f8;
+  min-height: 100vh;
+}
+
+.chat-box {
+  background: white;
+  border-radius: 8px;
+  padding: 15px;
+  height: 400px;
+  overflow-y: auto;
+  margin-bottom: 10px;
+}
+
+.chat-input {
+  display: flex;
+  gap: 10px;
+}
+
+.chat-input input {
+  flex: 1;
+  padding: 8px;
+}
+
+.chat-input button {
+  padding: 8px 16px;
+  background: #1976d2;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.chat-input button:hover {
+  background: #125ea5;
+}
