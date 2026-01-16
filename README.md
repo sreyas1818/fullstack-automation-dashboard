@@ -58,8 +58,24 @@ automation/
 │ └── pycache/
 │
 ├── frontend/ # React frontend
-│ ├── src/ # React source code
-│ ├── public/ # Static assets
+│ ├── public/ # Static files
+│ ├── src/ # Frontend source code
+│ │ ├── App.js
+│ │ ├── App.css
+│ │ ├── Login.js
+│ │ ├── Login.css
+│ │ ├── Dashboard.js
+│ │ ├── Dashboard.css
+│ │ ├── Graph.js # Charts & data visualization
+│ │ ├── Graph.css
+│ │ ├── Chatbot.js # JavaScript chatbot
+│ │ ├── Chatbot.css
+│ │ ├── Navbar.js
+│ │ ├── Navbar.css
+│ │ ├── index.js
+│ │ ├── index.css
+│ │ └── logo.svg
+│ │
 │ ├── package.json
 │ ├── package-lock.json
 │ └── node_modules/ # Ignored in GitHub
