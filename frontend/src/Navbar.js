@@ -24,7 +24,6 @@ function Navbar() {
           Dashboard
         </Link>
 
-        {/* ✅ NEW GRAPH NAV */}
         <Link
           to="/graph"
           className={location.pathname === "/graph" ? "active" : ""}
@@ -32,12 +31,7 @@ function Navbar() {
           Graph
         </Link>
 
-        <Link
-          to="/chatbot"
-          className={location.pathname === "/chatbot" ? "active" : ""}
-        >
-          Chatbot 🤖
-        </Link>
+        {/* ❌ Chatbot link REMOVED */}
       </div>
 
       <div className="nav-right">

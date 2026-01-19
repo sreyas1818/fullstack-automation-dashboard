@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Navbar from "./Navbar";
+import ChatbotWidget from "./ChatbotWidget";
 import "./Dashboard.css";
 
 function Dashboard() {
@@ -14,7 +15,6 @@ function Dashboard() {
       navigate("/", { replace: true });
     }
   }, [navigate]);
-
   // 📥 Fetch sales data
   useEffect(() => {
     fetch("http://127.0.0.1:8000/sales-data")
@@ -22,29 +22,33 @@ function Dashboard() {
       .then(setSalesData);
   }, []);
 
-  // 🔎 Filter sales data by MONTH
-  const filteredSalesData = salesData.filter((row) =>
-    row.month?.toLowerCase().includes(search.toLowerCase())
-  );
+  // 🔎 Filter by MONTH or SOURCE
+  const filteredSalesData = salesData.filter((row) => {
+    const query = search.toLowerCase();
+
+    return (
+      row.month?.toLowerCase().includes(query) ||
+      row.source?.toLowerCase().includes(query)
+    );
+  });
 
   return (
     <>
       <Navbar />
 
       <div className="dashboard-page">
-
-        {/* 🔹 SEARCH BAR (MONTH SEARCH) */}
+        {/* 🔹 SEARCH BAR */}
         <div className="card search-card">
           <input
             type="text"
-            placeholder="Search by Month (Jan, Feb...)"
+            placeholder="Search by Month or Source (Jan, google_drive...)"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
           <span>{filteredSalesData.length} records found</span>
         </div>
 
-        {/* 🔹 SALES DATA TABLE */}
+        {/* 🔹 SALES TABLE */}
         <div className="card table-card">
           <h3>Monthly Sales Data</h3>
 
@@ -74,10 +78,10 @@ function Dashboard() {
             </tbody>
           </table>
         </div>
-
       </div>
+      {/* 🤖 CHATBOT FLOATING WIDGET */}
+      <ChatbotWidget />
     </>
   );
 }
-
 export default Dashboard;
