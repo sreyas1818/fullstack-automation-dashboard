@@ -68,7 +68,7 @@ function Graph() {
 
   // 📥 Fetch data
   useEffect(() => {
-    fetch("http://127.0.0.1:8000/sales-data")
+    fetch("http://127.0.0.1:9000/sales-data")
       .then(res => res.json())
       .then(setSalesData);
   }, []);

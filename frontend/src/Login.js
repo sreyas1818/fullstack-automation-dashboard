@@ -16,32 +16,32 @@ function Login() {
   }, [navigate]);
 
   const login = async () => {
-    try {
-      const res = await fetch("http://127.0.0.1:8000/login", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          username: username,
-          password: password,
-        }),
-      });
+  console.log("LOGIN FUNCTION TRIGGERED"); // 👈 ADD THIS LINE
 
-      if (res.ok) {
-        // ✅ Save login state
-        sessionStorage.setItem("isLoggedIn", "true");
+  try {
+    const res = await fetch("http://127.0.0.1:9000/login", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        username: username,
+        password: password,
+      }),
+    });
 
-        // ✅ Prevent back navigation to login
-        navigate("/dashboard", { replace: true });
-      } else {
-        alert("Invalid username or password");
-      }
-    } catch (err) {
-      console.error("Login error:", err);
-      alert("Server error. Try again.");
+    if (res.ok) {
+      sessionStorage.setItem("isLoggedIn", "true");
+      navigate("/dashboard", { replace: true });
+    } else {
+      alert("Invalid username or password");
     }
-  };
+  } catch (err) {
+    console.error("Login error:", err);
+    alert("Server error. Try again.");
+  }
+};
+
 
   return (
     <div className="login-container">

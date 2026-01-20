@@ -2,8 +2,10 @@ import mysql.connector
 
 def get_db():
     return mysql.connector.connect(
-        host="localhost",
+        host="127.0.0.1",
         user="root",
-        password="",
-        database="pdf_payments"   # ✅ DB where sales_data exists
+        password="",        # add if you set one
+        database="pdf_payments",
+        port=3306,
+        connection_timeout=5
     )

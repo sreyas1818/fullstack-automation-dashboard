@@ -4,9 +4,15 @@ from pydantic import BaseModel
 from database import get_db
 import requests
 
+from sentence_transformers import SentenceTransformer
+import faiss
+import numpy as np
+
+# ========================
+# APP
+# ========================
 app = FastAPI()
 
-# ------------------ CORS ------------------
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -14,7 +20,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ------------------ MODELS ------------------
+# ========================
+# MODELS
+# ========================
 class LoginData(BaseModel):
     username: str
     password: str
@@ -22,45 +30,248 @@ class LoginData(BaseModel):
 class ChatRequest(BaseModel):
     message: str
 
-# ------------------ CONSTANTS ------------------
+# ========================
+# OLLAMA
+# ========================
 OLLAMA_URL = "http://localhost:11434/api/generate"
+OLLAMA_MODEL = "mistral"
 
-MONTHS = {
-    "jan": "Jan", "january": "Jan",
-    "feb": "Feb", "february": "Feb",
-    "mar": "Mar", "march": "Mar",
-    "apr": "Apr", "april": "Apr",
-    "may": "May",
-    "jun": "Jun", "june": "Jun",
-    "jul": "Jul", "july": "Jul",
-    "aug": "Aug", "august": "Aug",
-    "sep": "Sep", "september": "Sep",
-    "oct": "Oct", "october": "Oct",
-    "nov": "Nov", "november": "Nov",
-    "dec": "Dec", "december": "Dec"
+# ========================
+# RAG GLOBALS
+# ========================
+embedder = None
+documents = []
+index = None
+
+# ========================
+# CONSTANTS
+# ========================
+INTENTS = {
+    "min": ["minimum", "lowest", "min"],
+    "max": ["maximum", "highest", "max", "best"],
+    "avg": ["average", "mean", "avg"],
+    "sum": ["total", "sum", "overall"],
+    "diff": ["difference", "compare"],
+    "pct": ["percentage", "percent", "%"],
+    "trend": ["trend", "growth", "decline", "performance"]
 }
 
-MONTH_ORDER = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]
-
-CATEGORY_COLUMNS = {
+METRICS = {
     "electronics": "electronics",
     "clothing": "clothing",
     "groceries": "groceries",
     "total": "total_sales"
 }
 
-# ------------------ LOGIN ------------------
+MONTHS = {
+    "jan": "Jan", "feb": "Feb", "mar": "Mar", "apr": "Apr",
+    "may": "May", "jun": "Jun", "jul": "Jul", "aug": "Aug",
+    "sep": "Sep", "oct": "Oct", "nov": "Nov", "dec": "Dec"
+}
+
+MONTH_ORDER = {
+    "Jan": 1, "Feb": 2, "Mar": 3, "Apr": 4,
+    "May": 5, "Jun": 6, "Jul": 7, "Aug": 8,
+    "Sep": 9, "Oct": 10, "Nov": 11, "Dec": 12
+}
+
+# ========================
+# LOAD SALES DATA → TEXT
+# ========================
+def load_sales_documents():
+    db = get_db()
+    cursor = db.cursor(dictionary=True)
+    cursor.execute("SELECT * FROM sales_data ORDER BY id")
+    rows = cursor.fetchall()
+    cursor.close()
+    db.close()
+
+    docs = []
+    for r in rows:
+        docs.append(
+            f"""
+Month: {r['month']}
+Electronics: {r['electronics']}
+Clothing: {r['clothing']}
+Groceries: {r['groceries']}
+Total Sales: {r['total_sales']}
+""".strip()
+        )
+    return docs
+
+# ========================
+# INIT RAG
+# ========================
+@app.on_event("startup")
+def init_rag():
+    global embedder, documents, index
+    print("⏳ Initializing RAG...")
+
+    embedder = SentenceTransformer("all-MiniLM-L6-v2")
+    documents = load_sales_documents()
+
+    if not documents:
+        print("⚠️ No data found")
+        return
+
+    embeddings = embedder.encode(documents, convert_to_numpy=True)
+    index = faiss.IndexFlatL2(embeddings.shape[1])
+    index.add(embeddings)
+
+    print("✅ RAG Ready")
+
+# ========================
+# RAG RETRIEVAL
+# ========================
+def retrieve_indices(question, k=12):
+    if index is None:
+        return []
+    q_emb = embedder.encode([question], convert_to_numpy=True)
+    _, ids = index.search(q_emb, k)
+    return ids[0].tolist()
+
+# ========================
+# DATABASE ROWS
+# ========================
+def get_sales_rows():
+    db = get_db()
+    cursor = db.cursor(dictionary=True)
+    cursor.execute("SELECT * FROM sales_data ORDER BY id")
+    rows = cursor.fetchall()
+    cursor.close()
+    db.close()
+    return rows
+
+def fetch_rows_by_indices(indices):
+    rows = get_sales_rows()
+    return [rows[i] for i in indices if i < len(rows)]
+
+# ========================
+# HELPERS
+# ========================
+def detect_intent(question):
+    q = question.lower()
+    intents = []
+
+    for intent, keys in INTENTS.items():
+        if any(k in q for k in keys):
+            intents.append(intent)
+
+    metric = "total_sales"
+    for m in METRICS:
+        if m in q:
+            metric = METRICS[m]
+
+    return intents, metric
+
+def extract_months(question):
+    q = question.lower()
+    return [v for k, v in MONTHS.items() if k in q]
+
+# ========================
+# NUMERIC ENGINE (FINAL)
+# ========================
+def compute_facts(question, rows):
+    if not rows:
+        return None
+
+    intents, metric = detect_intent(question)
+    months_in_q = extract_months(question)
+
+    # Filter by months if mentioned
+    if months_in_q:
+        rows = [r for r in rows if r["month"] in months_in_q]
+
+    if not rows:
+        return None
+
+    # Always sort chronologically
+    rows.sort(key=lambda r: MONTH_ORDER.get(r["month"], 99))
+
+    values = [r[metric] for r in rows]
+
+    facts = {
+        "metric": metric,
+        "months": [r["month"] for r in rows],
+        "values": values
+    }
+
+    # ---------- RANGE LOGIC ----------
+    if len(rows) >= 2:
+        first, last = rows[0], rows[-1]
+
+        if "avg" in intents:
+            facts["average"] = round(sum(values) / len(values), 2)
+
+        if "pct" in intents:
+            old, new = first[metric], last[metric]
+            pct = ((new - old) / old) * 100 if old else 0
+
+            facts["percentage_change"] = {
+                "from": first["month"],
+                "to": last["month"],
+                "old": old,
+                "new": new,
+                "value": round(pct, 2),
+                "trend": "increase" if pct > 0 else "decrease" if pct < 0 else "no change"
+            }
+
+    # ---------- SINGLE METRIC ----------
+    if "min" in intents:
+        r = min(rows, key=lambda x: x[metric])
+        facts["minimum"] = {"month": r["month"], "value": r[metric]}
+
+    if "max" in intents:
+        r = max(rows, key=lambda x: x[metric])
+        facts["maximum"] = {"month": r["month"], "value": r[metric]}
+
+    if "sum" in intents:
+        facts["sum"] = sum(values)
+
+    if "diff" in intents and len(rows) == 2:
+        diff = rows[1][metric] - rows[0][metric]
+        facts["difference"] = abs(diff)
+        facts["trend"] = "increase" if diff > 0 else "decrease" if diff < 0 else "no change"
+
+    return facts
+
+# ========================
+# LLM FORMATTER
+# ========================
+def format_with_llm(facts, question):
+    prompt = f"""
+You are a dashboard analytics assistant.
+Convert FACTS into a clear answer.
+DO NOT calculate.
+DO NOT change numbers.
+
+FACTS:
+{facts}
+
+QUESTION:
+{question}
+
+ANSWER:
+"""
+    res = requests.post(
+        OLLAMA_URL,
+        json={"model": OLLAMA_MODEL, "prompt": prompt, "stream": False},
+        timeout=60
+    )
+    return res.json().get("response")
+
+# ========================
+# LOGIN (UNCHANGED)
+# ========================
 @app.post("/login")
 def login(data: LoginData):
     db = get_db()
     cursor = db.cursor(dictionary=True)
-
     cursor.execute(
         "SELECT * FROM admins WHERE username=%s AND password=%s",
         (data.username, data.password)
     )
     user = cursor.fetchone()
-
     cursor.close()
     db.close()
 
@@ -69,150 +280,42 @@ def login(data: LoginData):
 
     return {"message": "Login successful"}
 
-# ------------------ TRANSACTIONS ------------------
+# ========================
+# DASHBOARD DATA (UNCHANGED)
+# ========================
+@app.get("/sales-data")
+def sales_data():
+    return get_sales_rows()
+
 @app.get("/transactions")
-def get_transactions():
+def transactions():
     db = get_db()
     cursor = db.cursor(dictionary=True)
-
     cursor.execute("SELECT * FROM transactions ORDER BY created_at DESC")
-    data = cursor.fetchall()
-
-    cursor.close()
-    db.close()
-
-    return data
-
-# ------------------ CHATBOT ------------------
-@app.post("/chat")
-def chat(req: ChatRequest):
-    q = req.message.lower().strip()
-    words = q.replace("-", " ").split()
-
-    # ------------------ detect category ------------------
-    category = None
-    for c in CATEGORY_COLUMNS:
-        if c in q:
-            category = c
-            break
-
-    # ------------------ detect months ------------------
-    found_months = []
-    for w in words:
-        key = w[:3]
-        if key in MONTHS:
-            found_months.append(MONTHS[key])
-    found_months = list(dict.fromkeys(found_months))  # remove duplicates
-
-    # ------------------ detect action ------------------
-    if any(k in q for k in ["highest", "maximum", "max"]):
-        action = "max"
-    elif any(k in q for k in ["lowest", "minimum", "min"]):
-        action = "min"
-    elif any(k in q for k in ["average", "avg"]):
-        action = "average"
-    elif "sum" in q:
-        action = "sum"
-    else:
-        action = "list"
-
-    # ------------------ NON-DATA FALLBACK ------------------
-    if not category:
-        generic_prompt = f"""
-You are an admin dashboard assistant.
-Answer briefly and politely.
-Do not mention sales numbers.
-
-Question:
-{req.message}
-"""
-        try:
-            res = requests.post(
-                OLLAMA_URL,
-                json={"model": "phi", "prompt": generic_prompt, "stream": False},
-                timeout=20
-            )
-            return {"reply": res.json().get("response", "How can I help you?")}
-        except:
-            return {"reply": "I can help with dashboard-related questions."}
-
-    # ------------------ SQL LOGIC ------------------
-    column = CATEGORY_COLUMNS[category]
-
-    if len(found_months) == 2:
-        start = MONTH_ORDER.index(found_months[0])
-        end = MONTH_ORDER.index(found_months[1])
-        if start > end:
-            start, end = end, start
-        months_to_use = MONTH_ORDER[start:end + 1]
-    elif len(found_months) == 1:
-        months_to_use = found_months
-    else:
-        months_to_use = MONTH_ORDER
-
-    placeholders = ",".join(["%s"] * len(months_to_use))
-
-    if action == "sum":
-        query = f"SELECT SUM({column}) AS value FROM sales_data WHERE month IN ({placeholders})"
-    elif action == "average":
-        query = f"SELECT AVG({column}) AS value FROM sales_data WHERE month IN ({placeholders})"
-    elif action in ["max", "min"]:
-        order = "DESC" if action == "max" else "ASC"
-        query = f"""
-            SELECT month, {column}
-            FROM sales_data
-            WHERE month IN ({placeholders})
-            ORDER BY {column} {order}
-            LIMIT 1
-        """
-    else:
-        query = f"""
-            SELECT month, {column}
-            FROM sales_data
-            WHERE month IN ({placeholders})
-            ORDER BY id
-        """
-
-    db = get_db()
-    cursor = db.cursor(dictionary=True)
-    cursor.execute(query, tuple(months_to_use))
     rows = cursor.fetchall()
     cursor.close()
     db.close()
+    return rows
 
-    if not rows:
-        return {"reply": "Data not available"}
+# ========================
+# CHAT ENDPOINT
+# ========================
+@app.post("/chat")
+def chat(req: ChatRequest):
+    question = req.message.strip()
 
-    # ------------------ RESPONSE FORMAT ------------------
-    if action == "sum":
-        return {"reply": f"Total {category} sales is ₹{round(rows[0]['value'])}"}
+    indices = retrieve_indices(question)
+    rows = fetch_rows_by_indices(indices)
 
-    if action == "average":
-        return {"reply": f"Average {category} sales is ₹{round(rows[0]['value'])}"}
+    facts = compute_facts(question, rows)
 
-    if action in ["max", "min"]:
-        label = "Highest" if action == "max" else "Lowest"
-        return {
-            "reply": f"{label} {category} sales was in {rows[0]['month']} with ₹{rows[0][column]}"
-        }
+    if facts:
+        return {"reply": format_with_llm(facts, question)}
 
-    reply = f"{category.capitalize()} sales:\n"
-    for r in rows:
-        reply += f"{r['month']}: ₹{r[column]}\n"
-
-    return {"reply": reply}
-
-
-# ------------------ DASHBOARD DATA ------------------
-@app.get("/sales-data")
-def get_sales_data():
-    db = get_db()
-    cursor = db.cursor(dictionary=True)
-
-    cursor.execute("SELECT * FROM sales_data ORDER BY id")
-    data = cursor.fetchall()
-
-    cursor.close()
-    db.close()
-
-    return data
+    # Fallback
+    res = requests.post(
+        OLLAMA_URL,
+        json={"model": OLLAMA_MODEL, "prompt": question, "stream": False},
+        timeout=60
+    )
+    return {"reply": res.json().get("response")}
